@@ -46,5 +46,35 @@ jobs:
           grep -R "IPHONEOS_DEPLOYMENT_TARGET" ios || true
           grep -R "MinimumOSVersion" ios || true
 
-      - name: Build
+      - name: Build iOS
         run: flutter build ios --release --no-codesign
+
+      - name: Create Payload
+        working-directory: build/ios/iphoneos
+        run: |
+          mkdir Payload
+          cp -R Runner.app Payload/
+
+      - name: Create IPA
+        working-directory: build/ios/iphoneos
+        run: zip -r FlutterIpaExport.ipa Payload
+
+      - name: Verify IPA
+        run: ls -lh build/ios/iphoneos
+
+      - name: Upload IPA Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: FlutterIpaExport
+          path: build/ios/iphoneos/FlutterIpaExport.ipa
+
+      - name: Upload IPA to Release
+        uses: svenstaro/upload-release-action@v2
+        with:
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          file: build/ios/iphoneos/FlutterIpaExport.ipa
+          asset_name: FlutterIpaExport.ipa
+          tag: v1.0
+          release_name: v1.0
+          overwrite: true
+          body: Flutter iOS IPA
