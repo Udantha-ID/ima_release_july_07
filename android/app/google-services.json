@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "884871606705",
+    "project_id": "explore-push-notify",
+    "storage_bucket": "explore-push-notify.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:884871606705:android:47622ba15d94b9e5060d90",
+        "android_client_info": {
+          "package_name": "explore.enterprise.suite"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCOgdtOVFk1Ot0myPqX64sl4szyrYmgbUA"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
