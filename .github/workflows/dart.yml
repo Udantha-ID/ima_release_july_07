@@ -1,0 +1,50 @@
+name: iOS IPA Build
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-ios:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select Xcode
+        run: |
+          ls /Applications | grep Xcode
+          sudo xcode-select -s /Applications/Xcode.app
+          xcodebuild -version
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.3"
+
+      - name: Flutter Version
+        run: flutter --version
+
+      - name: Clean
+        run: flutter clean
+
+      - name: Get Packages
+        run: flutter pub get
+
+      - name: Install Pods
+        working-directory: ios
+        run: |
+          rm -rf Pods
+          rm -f Podfile.lock
+          pod repo update
+          pod install
+
+      - name: Show Deployment Target
+        run: |
+          grep -R "IPHONEOS_DEPLOYMENT_TARGET" ios || true
+          grep -R "MinimumOSVersion" ios || true
+
+      - name: Build
+        run: flutter build ios --release --no-codesign
