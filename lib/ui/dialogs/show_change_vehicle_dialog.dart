@@ -195,15 +195,26 @@ Future<void> showEndCurrentVehicleDialog({
                                     return null;
                                   },
                                 ),
-
+                              
                                 const SizedBox(height: 10),
+                                fieldLabel("Remark (Optional)"),
+                                const SizedBox(height: 6),
+                                TextFormField(
+                                  controller: remarkCtrl,
+                                  maxLines: 2,
+                                  maxLength: 300,
+                                  style: TextStyle(color: theme.textTheme.bodyLarge?.color),
+                                  decoration: inputStyle("Add any notes about ending this vehicle..."),
+                                ),
+                                
+                                const SizedBox(height: 8),
+
+                                // ── Photo upload ─────────────────────────────────────────────
                                 fieldLabel("End Meter Photo *"),
                                 const SizedBox(height: 8),
+                                // ── Photo picker ─────────────────────────────────────────
                                 GestureDetector(
                                   onTap: () async {
-                                    FocusScope.of(ctx).unfocus();
-                                    await Future.delayed(const Duration(milliseconds: 150));
-                                    if (!ctx.mounted) return;
                                     await showModalBottomSheet(
                                       context: ctx,
                                       shape: const RoundedRectangleBorder(
@@ -281,17 +292,6 @@ Future<void> showEndCurrentVehicleDialog({
                                   "• Double-check the number you entered matches the photo",
                                   style: TextStyle(fontSize: 11.2, fontWeight: FontWeight.w700,
                                       color: theme.hintColor, height: 1.25),
-                                ),
-
-                                const SizedBox(height: 10),
-                                fieldLabel("Remark (Optional)"),
-                                const SizedBox(height: 6),
-                                TextFormField(
-                                  controller: remarkCtrl,
-                                  maxLines: 2,
-                                  maxLength: 300,
-                                  style: TextStyle(color: theme.textTheme.bodyLarge?.color),
-                                  decoration: inputStyle("Add any notes about ending this vehicle..."),
                                 ),
 
                                 const SizedBox(height: 14),
@@ -593,14 +593,63 @@ Future<void> showStartNewVehicleDialog({
                                     },
                                   ),
 
+
                                   const SizedBox(height: 10),
-                                  fieldLabel("New Vehicle Meter Photo *"),
+
+                                  fieldLabel("Destination *"),
+
+                                  const SizedBox(height: 6),
+                                  TypeAheadField<_PlaceSuggestion>(
+                                    controller:          destinationCtrl,
+                                    focusNode:           destinationFocusNode,
+                                    debounceDuration:    const Duration(milliseconds: 400),
+                                    suggestionsCallback: _fetchPlaceSuggestions,
+                                    loadingBuilder: (context) => const Padding(
+                                      padding: EdgeInsets.all(12),
+                                      child: Center(child: CircularProgressIndicator(
+                                          color: Colors.blue,
+                                          backgroundColor: Colors.white,
+                                          strokeWidth: 2)),
+                                    ),
+                                    itemBuilder: (context, s) => ListTile(
+                                      leading: const Icon(Icons.location_on_outlined),
+                                      title: Text(s.description,
+                                          style: TextStyle(
+                                              color: theme.textTheme.bodyLarge?.color)),
+                                    ),
+                                    onSelected: (s) {
+                                      destinationCtrl.text = s.description;
+                                      destinationFocusNode.unfocus();
+                                    },
+                                    builder: (context, controller, focusNode) => TextFormField(
+                                      controller: controller,
+                                      focusNode:  focusNode,
+                                      style: TextStyle(color: theme.textTheme.bodyLarge?.color),
+                                      decoration: inputStyle("Enter destination"),
+                                      validator: (v) {
+                                        if (v == null || v.trim().isEmpty) return "Required";
+                                        return null;
+                                      },
+                                    ),
+                                  ),
+
+                                  const SizedBox(height: 16),
+                                  fieldLabel("Reason for change (Optional)"),
+                                  const SizedBox(height: 6),
+                                  TextFormField(
+                                    controller: remarkCtrl,
+                                    maxLines: 2,
+                                    maxLength: 300,
+                                    style: TextStyle(color: theme.textTheme.bodyLarge?.color),
+                                    decoration: inputStyle("Enter reason for changing vehicle..."),
+                                  ),
+
+                                const SizedBox(height: 8),
+
+                                fieldLabel("New Vehicle Meter Photo *"),
                                   const SizedBox(height: 8),
                                   GestureDetector(
                                     onTap: () async {
-                                      FocusScope.of(ctx).unfocus();
-                                      await Future.delayed(const Duration(milliseconds: 150));
-                                      if (!ctx.mounted) return;
                                       await showModalBottomSheet(
                                         context: ctx,
                                         shape: const RoundedRectangleBorder(
@@ -671,55 +720,6 @@ Future<void> showStartNewVehicleDialog({
                                             ),
                                     ),
                                   ),
-                                  const SizedBox(height: 10),
-                                  fieldLabel("Destination *"),
-                                  const SizedBox(height: 6),
-                                  TypeAheadField<_PlaceSuggestion>(
-                                    controller:          destinationCtrl,
-                                    focusNode:           destinationFocusNode,
-                                    debounceDuration:    const Duration(milliseconds: 400),
-                                    suggestionsCallback: _fetchPlaceSuggestions,
-                                    loadingBuilder: (context) => const Padding(
-                                      padding: EdgeInsets.all(12),
-                                      child: Center(child: CircularProgressIndicator(
-                                          color: Colors.blue,
-                                          backgroundColor: Colors.white,
-                                          strokeWidth: 2)),
-                                    ),
-                                    itemBuilder: (context, s) => ListTile(
-                                      leading: const Icon(Icons.location_on_outlined),
-                                      title: Text(s.description,
-                                          style: TextStyle(
-                                              color: theme.textTheme.bodyLarge?.color)),
-                                    ),
-                                    onSelected: (s) {
-                                      destinationCtrl.text = s.description;
-                                      destinationFocusNode.unfocus();
-                                    },
-                                    builder: (context, controller, focusNode) => TextFormField(
-                                      controller: controller,
-                                      focusNode:  focusNode,
-                                      style: TextStyle(color: theme.textTheme.bodyLarge?.color),
-                                      decoration: inputStyle("Enter destination"),
-                                      validator: (v) {
-                                        if (v == null || v.trim().isEmpty) return "Required";
-                                        return null;
-                                      },
-                                    ),
-                                  ),
-
-                                  const SizedBox(height: 16),
-                                  fieldLabel("Reason for change (Optional)"),
-                                  const SizedBox(height: 6),
-                                  TextFormField(
-                                    controller: remarkCtrl,
-                                    maxLines: 2,
-                                    maxLength: 300,
-                                    style: TextStyle(color: theme.textTheme.bodyLarge?.color),
-                                    decoration: inputStyle("Enter reason for changing vehicle..."),
-                                  ),
-
-
 
                                   const SizedBox(height: 14),
                                   Row(
