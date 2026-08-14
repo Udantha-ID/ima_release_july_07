@@ -220,35 +220,43 @@ class ApiService {
   }
 
   // ── Login ─────────────────────────────────────────────────────────────────
-  static Future<Map<String, dynamic>> login({
-    required String email,
-    required String password,
-  }) async {
-    try {
-      final url = Uri.parse("$baseUrl/login.php");
-      final res = await http.post(
-        url,
-        headers: {"Content-Type": "application/json", "Accept": "application/json"},
-        body: jsonEncode({"email": email, "password": password}),
-      ).timeout(const Duration(seconds: 15));
+static Future<Map<String, dynamic>> login({
+  required String email,
+  required String password,
+}) async {
+  try {
+    final url = Uri.parse("$baseUrl/login.php");
+    final res = await http.post(
+      url,
+      headers: {"Content-Type": "application/json", "Accept": "application/json"},
+      body: jsonEncode({"email": email, "password": password}),
+    ).timeout(const Duration(seconds: 15));
 
-      debugPrint("LOGIN URL: $url");
-      debugPrint("LOGIN STATUS: ${res.statusCode}");
-      debugPrint("LOGIN BODY: '${res.body}'");
+    debugPrint("LOGIN URL: $url");
+    debugPrint("LOGIN STATUS: ${res.statusCode}");
+    debugPrint("LOGIN BODY: '${res.body}'");
 
-      if (res.statusCode != 200) {
-        throw Exception('Server error (${res.statusCode}).');
-      }
-      if (res.body.trim().isEmpty) {
-        throw Exception('Server returned empty response. Please try again.');
-      }
-      return Map<String, dynamic>.from(jsonDecode(res.body));
-    } on TimeoutException {
-      throw Exception('Request timed out. Please check your connection and retry.');
-    } catch (e) {
-      throw Exception(_friendlyError(e));
+    // Only throw for real server crashes (5xx) — these have no useful body
+    if (res.statusCode >= 500) {
+      throw Exception('Server error (${res.statusCode}). Please try again later.');
     }
+
+    // Empty body is always a real problem regardless of status
+    if (res.body.trim().isEmpty) {
+      throw Exception('Server returned empty response. Please try again.');
+    }
+
+    // For all other status codes (200, 400, 401, 422 etc):
+    // Parse and RETURN the JSON — the login screen checks success:true/false
+    // and shows data["message"] itself. Don't throw here.
+    return Map<String, dynamic>.from(jsonDecode(res.body));
+
+  } on TimeoutException {
+    throw Exception('Request timed out. Please check your connection and retry.');
+  } catch (e) {
+    throw Exception(_friendlyError(e));
   }
+}
 
   // ── Get leave balance ─────────────────────────────────────────────────────
   static Future<Map<String, dynamic>> getLeaveBalance({
