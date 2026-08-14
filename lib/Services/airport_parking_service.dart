@@ -113,6 +113,9 @@ class TodayBooking {
   final String startDate;
   final String endDate;
   final String totalPrice;
+  final String bookingStatus;
+  final String customerStatus;
+  final String checkOutDatetime;
 
   const TodayBooking({
     required this.referenceNumber,
@@ -120,7 +123,20 @@ class TodayBooking {
     required this.startDate,
     required this.endDate,
     required this.totalPrice,
+    required this.bookingStatus,
+    required this.customerStatus,
+    required this.checkOutDatetime,
   });
+
+  bool get isCheckedIn {
+    final s = customerStatus.toLowerCase();
+    return s == 'check_in' || s == 'checked_in' || s == 'checked in';
+  }
+
+  bool get isCheckedOut {
+    final dt = checkOutDatetime.trim().toLowerCase();
+    return dt.isNotEmpty && dt != 'null';
+  }
 
   factory TodayBooking.fromJson(Map<String, dynamic> json) => TodayBooking(
         referenceNumber: json['reference_number']?.toString() ?? '',
@@ -128,6 +144,9 @@ class TodayBooking {
         startDate: json['start_date']?.toString() ?? '',
         endDate: json['end_date']?.toString() ?? '',
         totalPrice: json['total_price']?.toString() ?? '0.00',
+        bookingStatus: json['booking_status']?.toString() ?? '',
+        customerStatus: json['customer_status']?.toString() ?? '',
+        checkOutDatetime: json['check_out_datetime']?.toString() ?? '',
       );
 }
 
@@ -149,6 +168,51 @@ class TodayBookingsResult {
   });
 }
 
+class CheckedInVehicle {
+  final int id;
+  final String referenceNumber;
+  final String checkInDatetime;
+  final String checkInByName;
+  final String checkOutDatetime;
+  final String checkOutByName;
+  final String status;
+
+  const CheckedInVehicle({
+    required this.id,
+    required this.referenceNumber,
+    required this.checkInDatetime,
+    required this.checkInByName,
+    required this.checkOutDatetime,
+    required this.checkOutByName,
+    required this.status,
+  });
+
+  factory CheckedInVehicle.fromJson(Map<String, dynamic> json) =>
+      CheckedInVehicle(
+        id: (json['id'] as num?)?.toInt() ?? 0,
+        referenceNumber: json['reference_number']?.toString() ?? '',
+        checkInDatetime: json['check_in_datetime']?.toString() ?? '',
+        checkInByName: json['check_in_by_name']?.toString() ?? '',
+        checkOutDatetime: json['check_out_datetime']?.toString() ?? '',
+        checkOutByName: json['check_out_by_name']?.toString() ?? '',
+        status: json['status']?.toString() ?? '',
+      );
+}
+
+class CheckedInVehiclesResult {
+  final bool status;
+  final String message;
+  final int count;
+  final List<CheckedInVehicle> vehicles;
+
+  const CheckedInVehiclesResult({
+    required this.status,
+    required this.message,
+    required this.count,
+    required this.vehicles,
+  });
+}
+
 class AirportParkingService {
   // ── Switch here to toggle local ↔ production ──────────────────────────────
   //static const String _apiBase = "http://192.168.1.42/airport/api";
@@ -163,7 +227,8 @@ class AirportParkingService {
   static const String _updateStatusUrl  = "$_apiBase/update-booking-status.php";
   static const String _customerStatusUrl = "$_apiBase/get_customer_status.php";
   static const String _perDayRateUrl    = "$_apiBase/get-per-day-rate.php";
-  static const String _todayBookingsUrl = "$_apiBase/get_today_bookings.php";
+  static const String _todayBookingsUrl       = "$_apiBase/get_today_bookings.php";
+  static const String _checkedInVehiclesUrl   = "$_apiBase/get_checked_in_vehicles.php";
   static const String _checkReceiptUrl  = "$_apiBase/check_payment_receipt.php";
   static const String _saveReceiptUrl   = "$_apiBase/save_payment_receipt.php";
 
@@ -931,6 +996,61 @@ class AirportParkingService {
         toDate: '',
         count: 0,
         bookings: [],
+      );
+    }
+  }
+
+  static Future<CheckedInVehiclesResult> getCheckedInVehicles() async {
+    try {
+      final response = await http
+          .get(Uri.parse(_checkedInVehiclesUrl))
+          .timeout(const Duration(seconds: 15));
+
+      if (response.statusCode != 200) {
+        return CheckedInVehiclesResult(
+          status: false,
+          message: 'Server error (${response.statusCode}).',
+          count: 0,
+          vehicles: [],
+        );
+      }
+
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      final ok = json['status']?.toString().toLowerCase() == 'success';
+      if (!ok) {
+        return CheckedInVehiclesResult(
+          status: false,
+          message: (json['message'] as String?) ?? 'Failed to load.',
+          count: 0,
+          vehicles: [],
+        );
+      }
+
+      final rawList = json['vehicles'] as List? ?? [];
+      final vehicles = rawList
+          .whereType<Map<String, dynamic>>()
+          .map((e) => CheckedInVehicle.fromJson(e))
+          .toList();
+
+      return CheckedInVehiclesResult(
+        status: true,
+        message: 'OK',
+        count: (json['count'] as num?)?.toInt() ?? vehicles.length,
+        vehicles: vehicles,
+      );
+    } on SocketException {
+      return CheckedInVehiclesResult(
+        status: false,
+        message: 'No internet connection.',
+        count: 0,
+        vehicles: [],
+      );
+    } catch (e) {
+      return CheckedInVehiclesResult(
+        status: false,
+        message: 'Something went wrong: $e',
+        count: 0,
+        vehicles: [],
       );
     }
   }
