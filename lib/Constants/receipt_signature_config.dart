@@ -12,8 +12,16 @@ class ReceiptSignatureConfig {
   static const String signature1 = 'assets/signatures/signature1.png';
   static const String signature2 = 'assets/signatures/signature2.png';
   static const String srimalSir = 'assets/signatures/Srimal_test.png';
+
   static const String gayanSignature = 'assets/signatures/Gayan.png';
   static const String tharinduSignature = 'assets/signatures/Tharindu.png';
+  static const String heshanSignature = 'assets/signatures/Heshan.png';
+  static const String dimathSignature = 'assets/signatures/Dimath.png';
+  static const String krishanSignature = 'assets/signatures/Krishan.png';
+  static const String pathumSignature = 'assets/signatures/Pathum.png';
+  static const String rashanSignature = 'assets/signatures/Rashan.png';
+  static const String ryanSignature = 'assets/signatures/Ryan.png';
+  static const String sampathSignature = 'assets/signatures/Sampath.png';
 
 
   /// Map **one or more** identifiers per person (e.g. `'26'` and `'EMP026'`).
@@ -21,6 +29,13 @@ class ReceiptSignatureConfig {
     '19': srimalSir,
     '80': gayanSignature,
     '52': tharinduSignature,
+    '72': heshanSignature,
+    '78': dimathSignature,
+    '44': krishanSignature,
+    '94': pathumSignature,
+    '76': rashanSignature,
+    '77': ryanSignature,
+    '74': sampathSignature,
   };
 
   static String? _trimmed(dynamic v) {
