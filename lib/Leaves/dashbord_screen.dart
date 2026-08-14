@@ -27,10 +27,18 @@ bool get isManagers {
   return ["11", "14", "15", "16", "17", "18", "19", "20", "48"].contains(id);
 }
 
-/// General Manager — personal vehicle queue uses [get_general_manager_personal_vehicle_request.php].
+/// General Manager / MD — personal vehicle queue uses
+/// [get_general_manager_personal_vehicle_request.php] which includes HOD_APPROVED requests.
 bool get isGeneralManager {
-  final id = widget.user["jobTitleId"] ?? widget.user["job_title_id"];
-  return id?.toString() == "15";
+  final u = widget.user;
+  // Match by job title ID
+  final id = (u["jobTitleId"] ?? u["job_title_id"])?.toString() ?? "";
+  if (id == "15") return true;
+  // Match by job title name (covers MD and other senior titles)
+  final title = (u["jobTitle"] ?? u["job_title_name"] ?? "").toString().toLowerCase();
+  if (title.contains("general manager")) return true;
+  if (title.contains("managing director")) return true;
+  return false;
 }
 
   int relieverBadgeCount = 0;
@@ -156,10 +164,24 @@ Future<void> _loadPersonalVehicleRequestCount() async {
     final managerId = widget.user["employeeId"]?.toString() ?? "";
     if (managerId.isEmpty) return;
 
-    final list = isGeneralManager
-        ? await VehicleApiService.fetchGeneralManagerPersonalRequests()
-        : await VehicleApiService.fetchManagerPersonalRequests(managerId: managerId);
-    setState(() => personalVehicleBadgeCount = list.length);
+    if (isGeneralManager) {
+      // GM/MD: fetch includes HOD_APPROVED (forwarded by HOD) + PENDING assigned to them
+      final list = await VehicleApiService.fetchGeneralManagerPersonalRequests(
+        userId: managerId,
+      );
+      setState(() => personalVehicleBadgeCount = list.length);
+    } else {
+      // HOD: PENDING needs their action + HOD_APPROVED they forwarded (still in queue screen)
+      final results = await Future.wait([
+        VehicleApiService.fetchManagerPersonalRequests(managerId: managerId),
+        VehicleApiService.fetchGeneralManagerPersonalRequests(userId: managerId),
+      ]);
+      final pendingCount    = results[0].length;
+      final hodApprovedCount = results[1]
+          .where((r) => (r["status"] ?? "").toString().toUpperCase() == "HOD_APPROVED")
+          .length;
+      setState(() => personalVehicleBadgeCount = pendingCount + hodApprovedCount);
+    }
   } catch (e) {
     setState(() => personalVehicleBadgeCount = 0);
   }
