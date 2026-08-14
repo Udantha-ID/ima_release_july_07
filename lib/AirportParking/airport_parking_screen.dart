@@ -12,6 +12,8 @@ import '../ui/dialogs/update_slot_booking_dialog.dart';
 import 'airport_parking_receipt_builder.dart';
 import 'invoice_pdf_viewer_screen.dart';
 
+enum _BookingFilter { notCheckedIn, checkedIn }
+
 class AirportParkingScreen extends StatefulWidget {
   final Map<String, dynamic> user;
 
@@ -44,6 +46,21 @@ class _AirportParkingScreenState extends State<AirportParkingScreen> {
   String _fromDate = '';
   String _toDate = '';
 
+  bool _isCheckedInLoading = false;
+  List<CheckedInVehicle> _checkedInVehicles = [];
+  String? _checkedInError;
+
+  _BookingFilter _bookingFilter = _BookingFilter.notCheckedIn;
+
+  List<TodayBooking> get _filteredBookings {
+    switch (_bookingFilter) {
+      case _BookingFilter.checkedIn:
+        return todayBookings.where((b) => b.isCheckedIn && !b.isCheckedOut).toList();
+      case _BookingFilter.notCheckedIn:
+        return todayBookings.where((b) => !b.isCheckedIn && !b.isCheckedOut).toList();
+    }
+  }
+
   static const _blue1 = Color(0xFF1565C0);
   static const _blue2 = Color(0xFF003580);
   static const _textDark = Color(0xFF0F172A);
@@ -54,13 +71,11 @@ class _AirportParkingScreenState extends State<AirportParkingScreen> {
     super.initState();
     ScreenProtector.protectDataLeakageOff();
     _fetchTodayBookings();
+    _fetchCheckedInVehicles();
   }
 
   Future<void> _fetchTodayBookings() async {
-    setState(() {
-      isTodayLoading = true;
-      todayBookingsError = null;
-    });
+    setState(() { isTodayLoading = true; todayBookingsError = null; });
     final result = await AirportParkingService.getTodayBookings();
     if (!mounted) return;
     setState(() {
@@ -76,9 +91,35 @@ class _AirportParkingScreenState extends State<AirportParkingScreen> {
     });
   }
 
+  Future<void> _fetchCheckedInVehicles() async {
+    setState(() { _isCheckedInLoading = true; _checkedInError = null; });
+    final result = await AirportParkingService.getCheckedInVehicles();
+    if (!mounted) return;
+    setState(() {
+      _isCheckedInLoading = false;
+      if (result.status) {
+        _checkedInVehicles = result.vehicles;
+      } else {
+        _checkedInError = result.message;
+        _checkedInVehicles = [];
+      }
+    });
+  }
+
   void _autofillFromTodayBooking(TodayBooking booking) {
     final ref = booking.referenceNumber.toUpperCase().trim();
-    // Parse e.g. "G5-AP-01-0626" or "G8-AP-17"
+    final parts = ref.split('-AP-');
+    if (parts.length == 2) {
+      gNumberController.text = parts[0];
+      final rest = parts[1].split('-');
+      apNumberController.text = rest[0];
+      datePartController.text = rest.length > 1 ? rest[1] : '';
+    }
+    _search();
+  }
+
+  void _autofillFromCheckedInVehicle(CheckedInVehicle vehicle) {
+    final ref = vehicle.referenceNumber.toUpperCase().trim();
     final parts = ref.split('-AP-');
     if (parts.length == 2) {
       gNumberController.text = parts[0];
@@ -1099,6 +1140,83 @@ class _AirportParkingScreenState extends State<AirportParkingScreen> {
     }
   }
 
+  Widget _buildFilterChips() {
+    int countFor(_BookingFilter f) {
+      switch (f) {
+        case _BookingFilter.checkedIn:    return _checkedInVehicles.length;
+        case _BookingFilter.notCheckedIn: return todayBookings.where((b) => !b.isCheckedIn && !b.isCheckedOut).length;
+      }
+    }
+
+    Widget chip(_BookingFilter filter, String label, IconData icon) {
+      final isSelected = _bookingFilter == filter;
+      final count = countFor(filter);
+      return GestureDetector(
+        onTap: () => setState(() => _bookingFilter = filter),
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 180),
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: isSelected ? _blue2 : const Color(0xFFF1F5F9),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: isSelected ? _blue2 : const Color(0xFFE2E8F0),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 13,
+                  color: isSelected ? Colors.white : _textMuted),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: isSelected ? Colors.white : _textMuted,
+                ),
+              ),
+              if (count > 0) ...[
+                const SizedBox(width: 5),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: isSelected
+                        ? Colors.white.withValues(alpha: 0.25)
+                        : const Color(0xFFE2E8F0),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: Text(
+                    '$count',
+                    style: TextStyle(
+                      fontSize: 10.5,
+                      fontWeight: FontWeight.w800,
+                      color: isSelected ? Colors.white : _textDark,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          chip(_BookingFilter.notCheckedIn, 'Not Arrived', Icons.schedule_rounded),
+          const SizedBox(width: 10),
+          chip(_BookingFilter.checkedIn, 'Checked In', Icons.how_to_reg_rounded),
+        ],
+      ),
+    );
+  }
+
   Widget _buildTodayBookingsCard() {
     final now = DateTime.now();
     final todayLabel = (_fromDate.isNotEmpty && _toDate.isNotEmpty)
@@ -1164,9 +1282,9 @@ class _AirportParkingScreenState extends State<AirportParkingScreen> {
                     ],
                   ),
                 ),
-                if (!isTodayLoading)
+                if (!isTodayLoading && !_isCheckedInLoading)
                   GestureDetector(
-                    onTap: _fetchTodayBookings,
+                    onTap: () { _fetchTodayBookings(); _fetchCheckedInVehicles(); },
                     child: Container(
                       padding: const EdgeInsets.all(6),
                       decoration: BoxDecoration(
@@ -1202,104 +1320,266 @@ class _AirportParkingScreenState extends State<AirportParkingScreen> {
 
           const Divider(height: 1, color: Color(0xFFE2E8F0)),
 
-          // ── Content ──
-          if (isTodayLoading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                child: SizedBox(
-                  width: 22,
-                  height: 22,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2.5,
-                    color: _blue2,
+          // ── Filter chips ──
+          _buildFilterChips(),
+
+          // ── Content: Checked In ──
+          if (_bookingFilter == _BookingFilter.checkedIn) ...[
+            if (_isCheckedInLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: SizedBox(
+                    width: 22, height: 22,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.5, color: _blue2),
                   ),
                 ),
-              ),
-            )
-          else if (todayBookingsError != null)
-            Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                children: [
-                  const Icon(Icons.wifi_off_rounded,
-                      color: _textMuted, size: 18),
+              )
+            else if (_checkedInError != null)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(children: [
+                  const Icon(Icons.wifi_off_rounded, color: _textMuted, size: 18),
                   const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      todayBookingsError!,
-                      style: const TextStyle(
-                          fontSize: 12.5,
-                          color: _textMuted,
-                          fontWeight: FontWeight.w500),
+                  Expanded(child: Text(_checkedInError!,
+                      style: const TextStyle(fontSize: 12.5, color: _textMuted,
+                          fontWeight: FontWeight.w500))),
+                ]),
+              )
+            else if (_checkedInVehicles.isEmpty)
+              _buildEmptyFilterState('No vehicles currently checked in.')
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                itemCount: _checkedInVehicles.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemBuilder: (_, i) =>
+                    _buildCheckedInVehicleTile(_checkedInVehicles[i]),
+              ),
+          ]
+
+          // ── Content: Not Arrived ──
+          else ...[
+            if (isTodayLoading)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: SizedBox(
+                    width: 22, height: 22,
+                    child: CircularProgressIndicator(
+                        strokeWidth: 2.5, color: _blue2),
+                  ),
+                ),
+              )
+            else if (todayBookingsError != null)
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(children: [
+                  const Icon(Icons.wifi_off_rounded, color: _textMuted, size: 18),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(todayBookingsError!,
+                      style: const TextStyle(fontSize: 12.5, color: _textMuted,
+                          fontWeight: FontWeight.w500))),
+                ]),
+              )
+            else if (_filteredBookings.isEmpty)
+              _buildEmptyFilterState('No upcoming arrivals this week.')
+            else
+              ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                itemCount: _filteredBookings.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemBuilder: (_, i) =>
+                    _buildTodayBookingTile(_filteredBookings[i]),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyFilterState(String message) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: const Color(0xFFF8FAFC),
+                shape: BoxShape.circle,
+                border: Border.all(color: const Color(0xFFE2E8F0)),
+              ),
+              child: const Icon(Icons.event_busy_rounded,
+                  size: 26, color: _textMuted),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: _textMuted,
+                height: 1.4,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildCheckedInVehicleTile(CheckedInVehicle vehicle) {
+    final slot = vehicle.referenceNumber.split('-').firstOrNull ?? '?';
+    final checkedInBy = vehicle.checkInByName.trim().isNotEmpty
+        ? vehicle.checkInByName.trim()
+        : '—';
+
+    return InkWell(
+      onTap: () => _autofillFromCheckedInVehicle(vehicle),
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF0FDF4),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: const Color(0xFFBBF7D0)),
+        ),
+        child: Row(
+          children: [
+            // Slot avatar
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFF16A34A), Color(0xFF166534)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              alignment: Alignment.center,
+              child: Text(
+                slot.toUpperCase(),
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+            // Reference + check-in info
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    vehicle.referenceNumber,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w700,
+                      color: _textDark,
                     ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      const Icon(Icons.person_outline_rounded,
+                          size: 11, color: _textMuted),
+                      const SizedBox(width: 3),
+                      Expanded(
+                        child: Text(
+                          checkedInBy,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11.5,
+                            color: _textMuted,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      const Icon(Icons.access_time_rounded,
+                          size: 11, color: _textMuted),
+                      const SizedBox(width: 3),
+                      Text(
+                        _formatDateTime(vehicle.checkInDatetime),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: _textMuted,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
-            )
-          else if (todayBookings.isEmpty)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 18, 16, 20),
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(14),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
-                        shape: BoxShape.circle,
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
-                      ),
-                      child: const Icon(Icons.event_busy_rounded,
-                          size: 26, color: _textMuted),
-                    ),
-                    const SizedBox(height: 10),
-                    const Text(
-                      "No bookings today",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w700,
-                        color: _textDark,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      "There are no arrivals scheduled for today.",
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: _textMuted,
-                        fontWeight: FontWeight.w500,
-                        height: 1.4,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            ListView.separated(
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-              itemCount: todayBookings.length,
-              separatorBuilder: (context, index) => const SizedBox(height: 8),
-              itemBuilder: (context, index) {
-                final b = todayBookings[index];
-                return _buildTodayBookingTile(b);
-              },
             ),
-        ],
+            // Checked-in badge + tap hint
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDCFCE7),
+                    borderRadius: BorderRadius.circular(99),
+                  ),
+                  child: const Text(
+                    'Checked In',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: Color(0xFF166534),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFEFF6FF),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: const Text(
+                    'View',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      color: _blue2,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildTodayBookingTile(TodayBooking booking) {
     final initials = booking.name.trim().isNotEmpty
-        ? booking.name.trim().split(' ').take(2).map((w) => w[0]).join()
+        ? booking.name.trim().split(' ').where((w) => w.isNotEmpty).take(2).map((w) => w[0]).join()
         : '?';
 
     return InkWell(
