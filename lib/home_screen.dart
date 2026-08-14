@@ -1,5 +1,8 @@
-﻿import 'package:flutter/material.dart';
+import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:http/http.dart' as http;
+import 'app_config.dart';
 import 'package:test_app/Leaves/dashbord_screen.dart';
 import 'login_screen.dart';
 import 'Leaves/top_banner.dart';
@@ -48,26 +51,33 @@ class _HomeScreenState extends State<HomeScreen> {
   String _searchQuery = "";
   String? _profilePhotoUrl;
   bool _photoLoading = false;
-  // Check the user is in the list of HR management
-  bool get isHrManagement {
-    final id = (widget.user["employeeId"] ?? widget.user["employeeId"])
-            ?.toString() ??
-        "";
-    return ["26","11","14","24","25","19"]
-        .contains(id);
-  }
+  bool _isHrManagement = false;
+  bool _isAirportParkingAllowed = false;
 
-  // ── Airport Parking access ────────────────────────────────────────────────
-  // Add or remove employee IDs here to control who can open the module.
-  static const _airportParkingAllowedIds = ["26","11","14","19","24","29","52","61","80"];
+  bool get isHrManagement => _isHrManagement;
+  bool get isAirportParkingAllowed => _isAirportParkingAllowed;
 
-  bool get isAirportParkingAllowed {
-    final id =
-        (widget.user["employeeId"] ?? widget.user["employee_id"] ?? widget.user["id"])
-            ?.toString()
-            .trim() ??
-        "";
-    return _airportParkingAllowedIds.contains(id);
+  Future<void> _loadUserAccess() async {
+    try {
+      final empId = (widget.user["employeeId"] ?? widget.user["employee_id"] ?? widget.user["id"])
+              ?.toString().trim() ?? "";
+      if (empId.isEmpty) return;
+
+      final uri = Uri.parse("${AppConfig.baseUrl}/get_user_access.php?employee_id=$empId");
+      final res = await http.get(uri, headers: {"Accept": "application/json"})
+          .timeout(const Duration(seconds: 10));
+
+      if (res.statusCode != 200) return;
+      final body = jsonDecode(res.body);
+      if (body["success"] != true) return;
+
+      final data = body["data"] as Map<String, dynamic>? ?? {};
+      if (!mounted) return;
+      setState(() {
+        _isHrManagement        = data["hr_management"]   == true;
+        _isAirportParkingAllowed = data["airport_parking"] == true;
+      });
+    } catch (_) {}
   }
 
   @override
@@ -101,6 +111,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _setupFcmListeners();
     _loadProfilePhoto();
+    _loadUserAccess();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final msg = widget.successMessage;
       if (msg != null && msg.trim().isNotEmpty) {
