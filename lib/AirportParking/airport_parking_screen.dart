@@ -873,7 +873,7 @@ class _AirportParkingScreenState extends State<AirportParkingScreen> {
       if (bookedDays > 0) perDayCharge = originalPrice / bookedDays;
     }
 
-    // ── Late-fee calculation (% of per-day charge, not total price) ───────────
+    // ── Late-fee calculation (per full day late + grace tier on the remainder) ─
     double lateHours = 0;
     double lateFeeAmount = 0;
     double totalPriceFinal = originalPrice;
@@ -884,17 +884,31 @@ class _AirportParkingScreenState extends State<AirportParkingScreen> {
       final diff = effectiveNow.difference(originalEndDate);
       if (diff.inMinutes > 0) {
         isLate = true;
-        lateHours = diff.inMinutes / 60.0;
-        if (lateHours <= 2) {
-          lateLabel = 'Waived Off  (≤ 2 hrs)';
-          lateFeeAmount = 0;
-        } else if (lateHours <= 8) {
-          lateLabel = '50% Surcharge  (2 – 8 hrs)';
-          lateFeeAmount = perDayCharge * 0.5;
+        final totalLateMinutes = diff.inMinutes;
+        lateHours = totalLateMinutes / 60.0;
+
+        // Every complete 24h period late is charged a full day's rate.
+        final fullLateDays = totalLateMinutes ~/ (24 * 60);
+        final remainderHours = (totalLateMinutes % (24 * 60)) / 60.0;
+        lateFeeAmount = fullLateDays * perDayCharge;
+
+        // The 2h/8h grace tiers apply only to the leftover partial day.
+        int chargedDays = fullLateDays;
+        if (remainderHours <= 2) {
+          lateLabel = fullLateDays > 0
+              ? '$fullLateDays Full Day(s)  +  Waived Off (≤ 2 hrs)'
+              : 'Waived Off  (≤ 2 hrs)';
+        } else if (remainderHours <= 8) {
+          lateFeeAmount += perDayCharge * 0.5;
+          lateLabel = fullLateDays > 0
+              ? '$fullLateDays Full Day(s)  +  50% Surcharge (2 – 8 hrs)'
+              : '50% Surcharge  (2 – 8 hrs)';
         } else {
-          lateLabel = '100% Full Day Charge  (> 8 hrs)';
-          lateFeeAmount = perDayCharge;
+          chargedDays += 1;
+          lateFeeAmount += perDayCharge;
+          lateLabel = '$chargedDays Full Day(s)  (100% Charge)';
         }
+
         totalPriceFinal = originalPrice + lateFeeAmount;
       }
     }
